@@ -128,7 +128,7 @@ class CalibrationVisualizer:
     
     def create_color_composition_display(self, save_path: str = "color_composition.png"):
         """创建RGB颜色合成显示图"""
-        fig, axes = plt.subplots(4, 4, figsize=(20, 20))  # 扩展为4行
+        fig, axes = plt.subplots(3, 4, figsize=(20, 15))  # 恢复为3行
         fig.suptitle('显示器颜色合成效果对比', fontsize=18, fontweight='bold')
         
         colors = ['R', 'G', 'B']
@@ -183,61 +183,6 @@ class CalibrationVisualizer:
             
             cbar = plt.colorbar(im, ax=axes[i, 3], fraction=0.046, pad=0.04)
             cbar.set_label('改善程度', rotation=270, labelpad=15)
-        
-        # 添加RGB三通道混合输出的第四行
-        # 获取RGB三通道混合数据（白色输出时的情况）
-        orig_mixed_r = (self.original_data.get("R_R", np.zeros((64, 64))) + 
-                       self.original_data.get("G_R", np.zeros((64, 64))) + 
-                       self.original_data.get("B_R", np.zeros((64, 64)))) / 3
-        orig_mixed_g = (self.original_data.get("R_G", np.zeros((64, 64))) + 
-                       self.original_data.get("G_G", np.zeros((64, 64))) + 
-                       self.original_data.get("B_G", np.zeros((64, 64)))) / 3
-        orig_mixed_b = (self.original_data.get("R_B", np.zeros((64, 64))) + 
-                       self.original_data.get("G_B", np.zeros((64, 64))) + 
-                       self.original_data.get("B_B", np.zeros((64, 64)))) / 3
-        
-        cal_mixed_r = (self.calibrated_data.get("R_R", np.zeros((64, 64))) + 
-                      self.calibrated_data.get("G_R", np.zeros((64, 64))) + 
-                      self.calibrated_data.get("B_R", np.zeros((64, 64)))) / 3
-        cal_mixed_g = (self.calibrated_data.get("R_G", np.zeros((64, 64))) + 
-                      self.calibrated_data.get("G_G", np.zeros((64, 64))) + 
-                      self.calibrated_data.get("B_G", np.zeros((64, 64)))) / 3
-        cal_mixed_b = (self.calibrated_data.get("R_B", np.zeros((64, 64))) + 
-                      self.calibrated_data.get("G_B", np.zeros((64, 64))) + 
-                      self.calibrated_data.get("B_B", np.zeros((64, 64)))) / 3
-        
-        # 创建RGB混合合成图像
-        original_mixed_rgb = self.create_rgb_image(orig_mixed_r, orig_mixed_g, orig_mixed_b)
-        calibrated_mixed_rgb = self.create_rgb_image(cal_mixed_r, cal_mixed_g, cal_mixed_b)
-        
-        # 理想的白色目标（亮度为220）
-        target_white = (target_brightness_norm, target_brightness_norm, target_brightness_norm)  # (220/255, 220/255, 220/255)
-        target_white_rgb = np.full((64, 64, 3), target_brightness_norm)
-        
-        # 显示RGB混合输出
-        axes[3, 0].imshow(original_mixed_rgb)
-        axes[3, 0].set_title('RGB混合输出 - 校准前', fontweight='bold')
-        axes[3, 0].axis('off')
-        self.add_stats_text(axes[3, 0], original_mixed_rgb, target_white)
-        
-        axes[3, 1].imshow(calibrated_mixed_rgb)
-        axes[3, 1].set_title('RGB混合输出 - 校准后', fontweight='bold')
-        axes[3, 1].axis('off')
-        self.add_stats_text(axes[3, 1], calibrated_mixed_rgb, target_white)
-        
-        axes[3, 2].imshow(target_white_rgb)
-        axes[3, 2].set_title('RGB混合输出 - 理想目标', fontweight='bold')
-        axes[3, 2].axis('off')
-        
-        # RGB混合输出的改善效果图
-        mixed_improvement = np.abs(original_mixed_rgb - np.array(target_white)) - np.abs(calibrated_mixed_rgb - np.array(target_white))
-        mixed_improvement_mag = np.linalg.norm(mixed_improvement, axis=2)
-        im_mixed = axes[3, 3].imshow(mixed_improvement_mag, cmap='RdYlGn', vmin=-0.3, vmax=0.3)
-        axes[3, 3].set_title('RGB混合输出 - 改善程度', fontweight='bold')
-        axes[3, 3].axis('off')
-        
-        cbar_mixed = plt.colorbar(im_mixed, ax=axes[3, 3], fraction=0.046, pad=0.04)
-        cbar_mixed.set_label('改善程度', rotation=270, labelpad=15)
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -450,7 +395,7 @@ class CalibrationVisualizer:
         print(f"✅ 色彩串扰分析图已保存: {save_path}")
     
     def create_3d_surface(self, save_path: str = "3d_surface.png"):
-        """创建3D表面图"""
+        """创建3D表面图（对数化数据以便更直观显示）"""
         try:
             from mpl_toolkits.mplot3d import Axes3D
         except ImportError:
@@ -463,40 +408,96 @@ class CalibrationVisualizer:
         cmaps = ['Reds', 'Greens', 'Blues']
         
         for i, (color, color_name, cmap) in enumerate(zip(colors, color_names, cmaps)):
-            # 校准前3D图
-            ax1 = fig.add_subplot(2, 3, i+1, projection='3d')
+            # 获取原始数据
             original_data = self.original_data.get(f"{color}_{color}", np.zeros((64, 64)))
+            calibrated_data = self.calibrated_data.get(f"{color}_{color}", np.zeros((64, 64)))
+            
+            # 对数化处理（添加1避免log(0)）
+            original_data_log = np.log10(original_data + 1)
+            calibrated_data_log = np.log10(calibrated_data + 1)
             
             x = np.arange(0, original_data.shape[1])
             y = np.arange(0, original_data.shape[0])
             X, Y = np.meshgrid(x, y)
             
-            surf1 = ax1.plot_surface(X, Y, original_data, cmap=cmap, alpha=0.8)
-            ax1.set_title(f'{color_name}通道 - 校准前')
+            # 计算颜色范围策略
+            # 校准前：使用全范围突出波动
+            orig_vmin = np.min(original_data_log)
+            orig_vmax = np.max(original_data_log)
+            orig_range = orig_vmax - orig_vmin
+            
+            # 校准后：使用更紧凑的范围突出均匀性
+            cal_mean = np.mean(calibrated_data_log)
+            cal_std = np.std(calibrated_data_log)
+            # 使用均值±2倍标准差作为颜色范围，突出细微差异
+            cal_vmin = max(cal_mean - 2*cal_std, np.min(calibrated_data_log))
+            cal_vmax = min(cal_mean + 2*cal_std, np.max(calibrated_data_log))
+            
+            # 校准前3D图 - 使用全范围
+            ax1 = fig.add_subplot(2, 3, i+1, projection='3d')
+            
+            surf1 = ax1.plot_surface(X, Y, original_data_log, cmap=cmap, alpha=0.8,
+                                   vmin=orig_vmin, vmax=orig_vmax)
+            ax1.set_title(f'{color_name}通道 - 校准前\n(突出显示数据波动)', fontsize=10, fontweight='bold')
             ax1.set_xlabel('X像素')
             ax1.set_ylabel('Y像素')
-            ax1.set_zlabel('亮度值')
+            ax1.set_zlabel('亮度值 (log10)')
             ax1.view_init(elev=30, azim=45)
             
-            # 校准后3D图
-            ax2 = fig.add_subplot(2, 3, i+4, projection='3d')
-            calibrated_data = self.calibrated_data.get(f"{color}_{color}", np.zeros((64, 64)))
+            # 添加颜色条
+            cbar1 = plt.colorbar(surf1, ax=ax1, shrink=0.6, aspect=20)
+            cbar1.set_label('log10(亮度+1)\n[全范围显示]', fontsize=8)
             
-            surf2 = ax2.plot_surface(X, Y, calibrated_data, cmap=cmap, alpha=0.8)
-            ax2.set_title(f'{color_name}通道 - 校准后')
+            # 校准后3D图 - 使用紧凑范围突出均匀性
+            ax2 = fig.add_subplot(2, 3, i+4, projection='3d')
+            
+            surf2 = ax2.plot_surface(X, Y, calibrated_data_log, cmap=cmap, alpha=0.8,
+                                   vmin=cal_vmin, vmax=cal_vmax)
+            ax2.set_title(f'{color_name}通道 - 校准后\n(突出显示数据均匀性)', fontsize=10, fontweight='bold')
             ax2.set_xlabel('X像素')
             ax2.set_ylabel('Y像素')
-            ax2.set_zlabel('亮度值')
+            ax2.set_zlabel('亮度值 (log10)')
             ax2.view_init(elev=30, azim=45)
             
-            # 添加目标亮度平面
+            # 添加颜色条
+            cbar2 = plt.colorbar(surf2, ax=ax2, shrink=0.6, aspect=20)
+            cbar2.set_label(f'log10(亮度+1)\n[紧凑范围: ±2σ]', fontsize=8)
+            
+            # 添加目标亮度平面（也进行对数化）
             target_plane = np.full_like(calibrated_data, self.target_brightness)
-            ax2.plot_surface(X, Y, target_plane, alpha=0.3, color='red')
+            target_plane_log = np.log10(target_plane + 1)
+            ax2.plot_surface(X, Y, target_plane_log, alpha=0.3, color='red')
+            
+            # 添加网格线以便更好地观察细节
+            ax1.grid(True, alpha=0.3)
+            ax2.grid(True, alpha=0.3)
+            
+            # 设置Z轴范围 - 校准前后使用相同范围便于对比
+            global_z_min = min(orig_vmin, cal_vmin)
+            global_z_max = max(orig_vmax, cal_vmax)
+            z_range = global_z_max - global_z_min
+            
+            ax1.set_zlim(global_z_min - 0.05*z_range, global_z_max + 0.05*z_range)
+            ax2.set_zlim(global_z_min - 0.05*z_range, global_z_max + 0.05*z_range)
+            
+            # 在校准后的图上添加统计信息
+            stats_text = f'均值: {cal_mean:.3f}\n标准差: {cal_std:.4f}\n变异系数: {cal_std/cal_mean:.4f}'
+            ax2.text2D(0.02, 0.98, stats_text, transform=ax2.transAxes, 
+                      verticalalignment='top', fontsize=8,
+                      bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+        
+        # 添加总标题说明
+        fig.suptitle('3D表面图 - 亮度分布（对数化显示，颜色策略优化）', fontsize=16, fontweight='bold', y=0.95)
+        
+        # 添加说明文字
+        fig.text(0.5, 0.02, 
+                '校准前：使用全数据范围显示，突出数据波动 | 校准后：使用紧凑范围显示，突出数据均匀性', 
+                ha='center', fontsize=10, style='italic')
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.close()  # 关闭图形，不显示
-        print(f"✅ 3D表面图已保存: {save_path}")
+        print(f"✅ 3D表面图（优化颜色策略）已保存: {save_path}")
 
     def generate_all_visualizations(self, output_dir: str = "visualization_output"):
         """生成所有可视化图表"""
