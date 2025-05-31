@@ -1,8 +1,10 @@
-# 使用指南
+# 使用指南 - Windows兼容版本
 
 ## 项目概述
 
 本项目实现了基于深度学习的色域转换模型，主要特点是在CIELAB感知均匀色彩空间中进行处理，并通过deltaE约束来控制色彩偏差。
+
+**注意：此版本已针对Windows系统优化，移除了MLX依赖，仅使用PyTorch。**
 
 ## 环境配置
 
@@ -13,9 +15,9 @@
 pip install -r requirements/base.txt
 
 # 根据你的平台选择一个：
-pip install -r requirements/pytorch_gpu.txt   # PyTorch GPU版本 (CUDA/MPS)
+pip install -r requirements/pytorch_gpu.txt   # PyTorch GPU版本 (CUDA)
 pip install -r requirements/pytorch_cpu.txt   # PyTorch CPU版本
-pip install -r requirements/mlx.txt           # Apple MLX版本 (仅Apple Silicon)
+# pip install -r requirements/mlx.txt         # Apple MLX版本 - Windows版本已禁用
 ```
 
 ### 2. 验证安装
@@ -37,13 +39,14 @@ from models.pytorch_model import create_pytorch_mapper
 model = create_pytorch_mapper()
 print("PyTorch模型创建成功")
 
-# 测试MLX (如果可用)
-try:
-    from models.mlx_model import create_mlx_mapper
-    mlx_model = create_mlx_mapper()
-    print("MLX模型创建成功")
-except ImportError:
-    print("MLX不可用 (仅支持Apple Silicon)")
+# MLX测试已禁用 (Windows版本不支持)
+# try:
+#     from models.mlx_model import create_mlx_mapper
+#     mlx_model = create_mlx_mapper()
+#     print("MLX模型创建成功")
+# except ImportError:
+#     print("MLX不可用 (仅支持Apple Silicon)")
+print("MLX已在Windows版本中禁用")
 ```
 
 ## 快速开始
@@ -72,10 +75,11 @@ python examples/quickstart.py
 ```
 
 这个演示包含：
-- 多平台性能对比 (PyTorch vs MLX)
+- PyTorch GPU/CPU性能对比
 - 多通道映射 (4ch → 5ch)
 - deltaE阈值影响测试
 - 综合性能评估
+<!-- - 多平台性能对比 (PyTorch vs MLX) - Windows版本已禁用 -->
 
 ## 核心功能详解
 
@@ -117,7 +121,7 @@ model = create_pytorch_mapper(
     target_gamut='srgb',       # 目标色域
     network_type='standard',   # 网络复杂度: standard/deep/wide
     deltaE_threshold=3.0,      # 允许的最大色彩偏差
-    device='auto'              # 自动选择设备: CUDA > MPS > CPU
+    device='auto'              # 自动选择设备: CUDA > CPU
 )
 
 # 检查设备
@@ -125,7 +129,7 @@ print(f"使用设备: {model.device}")
 print(f"模型参数: {sum(p.numel() for p in model.model.parameters()):,}")
 ```
 
-#### Apple MLX版本 (Apple Silicon专用)
+<!-- #### Apple MLX版本 (Windows版本已禁用)
 
 ```python
 from models.mlx_model import create_mlx_mapper
@@ -141,7 +145,7 @@ mlx_model = create_mlx_mapper(
 from models.mlx_model import benchmark_mlx_performance
 perf_metrics = benchmark_mlx_performance(mlx_model, n_samples=10000)
 print(f"MLX推理速度: {perf_metrics['throughput_samples_per_sec']:.0f} 样本/秒")
-```
+``` -->
 
 ### 3. 数据采样策略
 
@@ -456,10 +460,10 @@ model = create_pytorch_mapper(device=get_optimal_device())
    - 使用边界采样策略
    - 检查数据预处理
 
-4. **MLX导入失败**
-   - 确认使用Apple Silicon芯片
-   - 安装MLX: `pip install mlx`
-   - 使用PyTorch作为替代
+4. **Windows系统优化**
+   - 确保安装了CUDA驱动 (如果有NVIDIA GPU)
+   - 使用PyTorch GPU版本获得最佳性能
+   - CPU版本可在任何Windows系统上运行
 
 ### 性能优化建议
 
@@ -469,7 +473,7 @@ model = create_pytorch_mapper(device=get_optimal_device())
    - 清理中间变量
 
 2. **速度优化**
-   - 使用GPU/MPS加速
+   - 使用GPU加速 (CUDA)
    - 预编译模型
    - 批量处理数据
 
@@ -477,6 +481,24 @@ model = create_pytorch_mapper(device=get_optimal_device())
    - 增加训练数据量
    - 使用更深的网络
    - 调整损失函数权重
+
+## Windows系统特别说明
+
+### 支持的设备
+- ✅ **CUDA GPU**: 首选，性能最佳
+- ✅ **CPU**: 备选，兼容性最好
+- ❌ **MPS**: 不支持，仅限Apple设备
+
+### 推荐配置
+- **GPU用户**: 安装PyTorch GPU版本 + CUDA驱动
+- **CPU用户**: 安装PyTorch CPU版本，减少依赖
+
+### 设备自动检测
+```python
+# 创建模型时自动选择最佳设备
+model = create_pytorch_mapper(device='auto')
+# Windows上会自动选择: CUDA (如果可用) > CPU
+```
 
 ## 扩展开发
 
@@ -500,4 +522,4 @@ model = create_pytorch_mapper(device=get_optimal_device())
 
 ---
 
-这个使用指南涵盖了项目的主要功能和使用方法。如果遇到问题，请参考README.md或提交Issue。 
+这个使用指南涵盖了项目的主要功能和使用方法。此Windows兼容版本已完全移除MLX依赖，确保在Windows系统上的稳定运行。如果遇到问题，请参考README.md或提交Issue。 

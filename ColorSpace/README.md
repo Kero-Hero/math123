@@ -1,8 +1,10 @@
-# 色域转换模型 (ColorSpace Mapping)
+# 色域转换模型 (ColorSpace Mapping) - Windows兼容版本
 
 ## 项目概述
 
 本项目实现了一个基于感知均匀性的色域转换模型，目标是在控制色彩偏差（deltaE）的前提下，尽可能保留色彩的感知均匀性。
+
+**注意：此版本已针对Windows系统优化，移除了MLX依赖，仅使用PyTorch。**
 
 ## 核心特性
 
@@ -11,10 +13,10 @@
 - **多色域支持**: 
   - BT 2020 → sRGB 映射
   - 四通道 → 五通道映射
-- **三个实现版本**:
-  - Apple MLX (苹果芯片优化)
-  - PyTorch GPU (CUDA/MPS自动检测)
+- **PyTorch实现**:
+  - PyTorch GPU (CUDA自动检测)
   - PyTorch CPU
+  <!-- - Apple MLX (苹果芯片优化) - 已在Windows版本中禁用 -->
 
 ## 技术原理
 
@@ -32,16 +34,16 @@ ColorSpace/
 │   ├── gamut_mapping.py       # 色域映射模型
 │   └── loss_functions.py      # 损失函数(含deltaE)
 ├── models/             # 神经网络模型
-│   ├── mlx_model.py           # Apple MLX实现
 │   ├── pytorch_model.py       # PyTorch实现
 │   └── base_model.py          # 基础模型类
+│   <!-- └── mlx_model.py      # Apple MLX实现 - 已在Windows版本中禁用 -->
 ├── data/               # 数据处理
 │   ├── sampler.py             # 色域采样器
 │   └── dataset.py             # 数据集定义
 ├── training/           # 训练脚本
-│   ├── train_mlx.py           # MLX训练
 │   ├── train_pytorch.py       # PyTorch训练
 │   └── utils.py               # 训练工具
+│   <!-- └── train_mlx.py      # MLX训练 - 已在Windows版本中禁用 -->
 ├── examples/           # 使用示例
 └── requirements/       # 依赖管理
 ```
@@ -53,10 +55,12 @@ ColorSpace/
 pip install -r requirements/base.txt
 ```
 
-### 平台特定依赖
-- MLX版本: `pip install -r requirements/mlx.txt`
+### Windows平台依赖
 - PyTorch GPU版本: `pip install -r requirements/pytorch_gpu.txt`  
 - PyTorch CPU版本: `pip install -r requirements/pytorch_cpu.txt`
+
+<!-- ### 其他平台依赖 (Windows版本已禁用)
+- MLX版本: `pip install -r requirements/mlx.txt` -->
 
 ## 快速开始
 
@@ -112,7 +116,6 @@ python training/train_pytorch.py --source_gamut bt2020 --target_gamut srgb --epo
 
 ```python
 from models.pytorch_model import create_pytorch_mapper
-from models.mlx_model import create_mlx_mapper
 
 # PyTorch版本
 pytorch_mapper = create_pytorch_mapper(
@@ -120,15 +123,16 @@ pytorch_mapper = create_pytorch_mapper(
     target_gamut='srgb',        # 目标色域
     network_type='standard',    # 网络类型: 'standard', 'deep', 'wide'
     deltaE_threshold=3.0,       # deltaE阈值
-    device='auto'               # 设备: 'auto', 'cuda', 'mps', 'cpu'
+    device='auto'               # 设备: 'auto', 'cuda', 'cpu'
 )
 
-# MLX版本 (Apple Silicon)
-mlx_mapper = create_mlx_mapper(
-    source_gamut='bt2020',
-    target_gamut='srgb',
-    deltaE_threshold=3.0
-)
+# MLX版本 (Windows版本已禁用)
+# from models.mlx_model import create_mlx_mapper
+# mlx_mapper = create_mlx_mapper(
+#     source_gamut='bt2020',
+#     target_gamut='srgb',
+#     deltaE_threshold=3.0
+# )
 ```
 
 #### 2. 数据采样
@@ -303,7 +307,7 @@ python training/train_pytorch.py \
 
 ## 性能优化
 
-### Apple Silicon (MLX)
+<!-- ### Apple Silicon (MLX) - Windows版本已禁用
 
 ```python
 from models.mlx_model import create_mlx_mapper, benchmark_mlx_performance
@@ -314,13 +318,13 @@ model = create_mlx_mapper('bt2020', 'srgb')
 # 性能测试
 metrics = benchmark_mlx_performance(model, n_samples=10000)
 print(f"吞吐量: {metrics['throughput_samples_per_sec']:.0f} 样本/秒")
-```
+``` -->
 
 ### GPU加速 (PyTorch)
 
 ```python
 # 自动检测最佳设备
-model = create_pytorch_mapper(device='auto')  # CUDA > MPS > CPU
+model = create_pytorch_mapper(device='auto')  # CUDA > CPU
 
 # 手动指定设备
 model = create_pytorch_mapper(device='cuda')  # 强制使用CUDA
@@ -372,6 +376,17 @@ A:
 - 使用线性插值扩展或平均降维
 - 适用于光谱重建、打印校色等场景
 
+## Windows系统说明
+
+### 移除的功能
+- ❌ **Apple MLX支持**: 已完全移除，仅在Apple Silicon Mac上可用
+- ❌ **MPS设备支持**: Windows上不可用
+
+### 保留的功能
+- ✅ **CUDA GPU加速**: 支持NVIDIA GPU
+- ✅ **CPU推理**: 在没有GPU时使用CPU
+- ✅ **所有核心色域映射功能**: 完整保留
+
 ## 贡献指南
 
 欢迎贡献代码！请：
@@ -395,4 +410,4 @@ MIT License
 - [简单示例](examples/simple_example.py) - 5分钟上手
 - [完整演示](examples/quickstart.py) - 功能展示  
 - [训练脚本](training/train_pytorch.py) - 自定义训练
-- [API文档](#api-文档) - 详细接口 
+- [API文档](#api-文档) - 详细接口
