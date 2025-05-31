@@ -1,0 +1,16 @@
+# 数据可视化核心依赖
+numpy>=1.21.0
+pandas>=1.3.0
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# GUI界面依赖
+ttkbootstrap>=1.10.0
+pillow>=8.0.0
+
+# 系统工具
+pathlib
+threading
+
+# 可选依赖 (用于某些功能)
+scipy>=1.7.0 
