@@ -16,31 +16,31 @@ import argparse
 framework = None
 device = None
 
+# try:
+#     import mlx.core as mx
+#     import mlx.nn as nn
+#     import mlx.optimizers as optim
+#     framework = "mlx"
+#     print("使用 Apple MLX 框架")
+# except ImportError:
 try:
-    import mlx.core as mx
-    import mlx.nn as nn
-    import mlx.optimizers as optim
-    framework = "mlx"
-    print("使用 Apple MLX 框架")
+    import torch
+    import torch.nn as nn_torch
+    import torch.optim as optim_torch
+    framework = "pytorch"
+    # 检测设备
+    if torch.backends.mps.is_available():
+        device = torch.device("mps")
+        print("使用 Apple Metal Performance Shaders (MPS)")
+    elif torch.cuda.is_available():
+        device = torch.device("cuda")
+        print("使用 NVIDIA CUDA")
+    else:
+        device = torch.device("cpu")
+        print("使用 CPU")
 except ImportError:
-    try:
-        import torch
-        import torch.nn as nn_torch
-        import torch.optim as optim_torch
-        framework = "pytorch"
-        # 检测设备
-        if torch.backends.mps.is_available():
-            device = torch.device("mps")
-            print("使用 Apple Metal Performance Shaders (MPS)")
-        elif torch.cuda.is_available():
-            device = torch.device("cuda")
-            print("使用 NVIDIA CUDA")
-        else:
-            device = torch.device("cpu")
-            print("使用 CPU")
-    except ImportError:
-        print("警告：未找到 MLX 或 PyTorch，将使用 NumPy 进行计算")
-        framework = "numpy"
+    print("警告：未找到 PyTorch，将使用 NumPy 进行计算")
+    framework = "numpy"
 
 # 设置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -69,13 +69,14 @@ class DisplayCalibrator:
         
         # 初始化校准矩阵 (64, 64, 3, 3) - 每个像素点都有一个3x3变换矩阵
         # 使用单位矩阵作为初始值，加上小的随机扰动
-        if framework == "mlx":
-            # MLX使用32位浮点数
-            identity = mx.eye(3, dtype=mx.float32)
-            identity_expanded = mx.broadcast_to(identity[None, None, :, :], (self.height, self.width, 3, 3))
-            noise = mx.random.normal((self.height, self.width, 3, 3), dtype=mx.float32) * 0.01
-            self.calibration_matrix = identity_expanded + noise
-        elif framework == "pytorch":
+        # if framework == "mlx":
+        #     # MLX使用32位浮点数
+        #     identity = mx.eye(3, dtype=mx.float32)
+        #     identity_expanded = mx.broadcast_to(identity[None, None, :, :], (self.height, self.width, 3, 3))
+        #     noise = mx.random.normal((self.height, self.width, 3, 3), dtype=mx.float32) * 0.01
+        #     self.calibration_matrix = identity_expanded + noise
+        # elif framework == "pytorch":
+        if framework == "pytorch":
             identity = torch.eye(3, device=device, dtype=torch.float32)
             identity_expanded = identity.unsqueeze(0).unsqueeze(0).expand(self.height, self.width, -1, -1)
             noise = torch.randn((self.height, self.width, 3, 3), device=device, dtype=torch.float32) * 0.01
@@ -123,13 +124,14 @@ class DisplayCalibrator:
         Returns:
             校准后的RGB值（确保非负）
         """
-        if framework == "mlx":
-            # 使用 MLX 进行批量矩阵乘法
-            input_rgb_expanded = input_rgb[:, :, :, None]  # (64, 64, 3, 1)
-            calibrated = mx.matmul(self.calibration_matrix, input_rgb_expanded).squeeze(-1)
-            # 确保输出非负
-            calibrated = mx.maximum(calibrated, 0.0)
-        elif framework == "pytorch":
+        # if framework == "mlx":
+        #     # 使用 MLX 进行批量矩阵乘法
+        #     input_rgb_expanded = input_rgb[:, :, :, None]  # (64, 64, 3, 1)
+        #     calibrated = mx.matmul(self.calibration_matrix, input_rgb_expanded).squeeze(-1)
+        #     # 确保输出非负
+        #     calibrated = mx.maximum(calibrated, 0.0)
+        # elif framework == "pytorch":
+        if framework == "pytorch":
             # 使用 PyTorch 进行批量矩阵乘法
             input_rgb_expanded = input_rgb.unsqueeze(-1)  # (64, 64, 3, 1)
             calibrated = torch.matmul(self.calibration_matrix, input_rgb_expanded).squeeze(-1)
@@ -157,24 +159,25 @@ class DisplayCalibrator:
         Returns:
             损失值
         """
-        if framework == "mlx":
-            # 1. 亮度差损失 - 各通道与目标亮度的平方差
-            brightness_loss = mx.sum((predicted_rgb - self.target_brightness) ** 2)
-            
-            # 2. 颜色纯度损失 - 惩罚不纯的颜色
-            r, g, b = predicted_rgb[:, :, 0], predicted_rgb[:, :, 1], predicted_rgb[:, :, 2]
-            
-            # 计算通道间差异
-            cross_channel_diff = (r - b) * (r - g) * (g - r) * (g - b) * (b - r) * (b - g)
-            # 避免log(0)或log(负数)
-            cross_channel_diff = mx.maximum(cross_channel_diff, 1e-8)
-            purity_loss = mx.sum(mx.log(mx.abs(cross_channel_diff) + 1e-8))
-            
-            # 3. 高亮度差异惩罚减少
-            high_brightness_factor = mx.log((r * g * b) / (256**3) + 1e-8)
-            high_brightness_loss = mx.sum(high_brightness_factor)
-            
-        elif framework == "pytorch":
+        # if framework == "mlx":
+        #     # 1. 亮度差损失 - 各通道与目标亮度的平方差
+        #     brightness_loss = mx.sum((predicted_rgb - self.target_brightness) ** 2)
+        #     
+        #     # 2. 颜色纯度损失 - 惩罚不纯的颜色
+        #     r, g, b = predicted_rgb[:, :, 0], predicted_rgb[:, :, 1], predicted_rgb[:, :, 2]
+        #     
+        #     # 计算通道间差异
+        #     cross_channel_diff = (r - b) * (r - g) * (g - r) * (g - b) * (b - r) * (b - g)
+        #     # 避免log(0)或log(负数)
+        #     cross_channel_diff = mx.maximum(cross_channel_diff, 1e-8)
+        #     purity_loss = mx.sum(mx.log(mx.abs(cross_channel_diff) + 1e-8))
+        #     
+        #     # 3. 高亮度差异惩罚减少
+        #     high_brightness_factor = mx.log((r * g * b) / (256**3) + 1e-8)
+        #     high_brightness_loss = mx.sum(high_brightness_factor)
+        #     
+        # elif framework == "pytorch":
+        if framework == "pytorch":
             # 1. 亮度差损失
             brightness_loss = torch.sum((predicted_rgb - self.target_brightness) ** 2)
             
@@ -219,24 +222,25 @@ class DisplayCalibrator:
         for color_idx in range(3):  # R, G, B 输出
             rgb_output = predicted_rgb[color_idx]  # (64, 64, 3)
             
-            if framework == "mlx":
-                # 1. 最小化极差
-                max_val = mx.max(rgb_output)
-                min_val = mx.min(rgb_output)
-                range_loss = (max_val - min_val) ** 2
-                
-                # 2. 最小化相邻像素点的亮度差
-                # 水平方向
-                h_diff = mx.sum((rgb_output[1:, :, :] - rgb_output[:-1, :, :]) ** 2)
-                # 垂直方向
-                v_diff = mx.sum((rgb_output[:, 1:, :] - rgb_output[:, :-1, :]) ** 2)
-                neighbor_loss = h_diff + v_diff
-                
-                # 3. 均值与目标亮度的差异
-                mean_brightness = mx.mean(rgb_output)
-                mean_loss = (mean_brightness - self.target_brightness) ** 2
-                
-            elif framework == "pytorch":
+            # if framework == "mlx":
+            #     # 1. 最小化极差
+            #     max_val = mx.max(rgb_output)
+            #     min_val = mx.min(rgb_output)
+            #     range_loss = (max_val - min_val) ** 2
+            #     
+            #     # 2. 最小化相邻像素点的亮度差
+            #     # 水平方向
+            #     h_diff = mx.sum((rgb_output[1:, :, :] - rgb_output[:-1, :, :]) ** 2)
+            #     # 垂直方向
+            #     v_diff = mx.sum((rgb_output[:, 1:, :] - rgb_output[:, :-1, :]) ** 2)
+            #     neighbor_loss = h_diff + v_diff
+            #     
+            #     # 3. 均值与目标亮度的差异
+            #     mean_brightness = mx.mean(rgb_output)
+            #     mean_loss = (mean_brightness - self.target_brightness) ** 2
+            #     
+            # elif framework == "pytorch":
+            if framework == "pytorch":
                 # 1. 最小化极差
                 max_val = torch.max(rgb_output)
                 min_val = torch.min(rgb_output)
@@ -279,10 +283,11 @@ class DisplayCalibrator:
             总损失
         """
         # 转换为目标格式
-        if framework == "mlx":
-            target_data = mx.array(self.data)
-            predicted_rgb = mx.zeros((3, self.height, self.width, 3))
-        elif framework == "pytorch":
+        # if framework == "mlx":
+        #     target_data = mx.array(self.data)
+        #     predicted_rgb = mx.zeros((3, self.height, self.width, 3))
+        # elif framework == "pytorch":
+        if framework == "pytorch":
             target_data = torch.tensor(self.data, device=device, dtype=torch.float32)
             predicted_rgb = torch.zeros((3, self.height, self.width, 3), device=device)
         else:
@@ -318,122 +323,123 @@ class DisplayCalibrator:
         """
         logger.info("开始训练校准矩阵...")
         
-        if framework == "mlx":
-            # MLX 使用手动梯度下降
-            def loss_fn(calibration_matrix):
-                total_loss = 0
-                
-                # 转换数据为MLX格式
-                target_data = mx.array(self.data.astype(np.float32))
-                
-                for color_idx in range(3):
-                    # 创建目标输入（用户想要显示的颜色）
-                    if color_idx == 0:  # 想要显示红色
-                        target_input = mx.stack([
-                            mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32),
-                            mx.zeros((self.height, self.width), dtype=mx.float32),
-                            mx.zeros((self.height, self.width), dtype=mx.float32)
-                        ], axis=2)
-                    elif color_idx == 1:  # 想要显示绿色
-                        target_input = mx.stack([
-                            mx.zeros((self.height, self.width), dtype=mx.float32),
-                            mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32),
-                            mx.zeros((self.height, self.width), dtype=mx.float32)
-                        ], axis=2)
-                    else:  # 想要显示蓝色
-                        target_input = mx.stack([
-                            mx.zeros((self.height, self.width), dtype=mx.float32),
-                            mx.zeros((self.height, self.width), dtype=mx.float32),
-                            mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32)
-                        ], axis=2)
-                    
-                    # 应用校准矩阵
-                    input_expanded = target_input[:, :, :, None]  # (64, 64, 3, 1)
-                    calibrated_input = mx.matmul(calibration_matrix, input_expanded).squeeze(-1)  # (64, 64, 3)
-                    
-                    # 强制非负约束（在损失计算中）
-                    negative_penalty = mx.sum(mx.maximum(0, -calibrated_input) ** 2) * 1000.0  # 对负值强烈惩罚
-                    calibrated_input_clipped = mx.maximum(calibrated_input, 0.0)  # 用于后续计算的非负版本
-                    
-                    # 实际测量数据（当前输入220时的实际输出）
-                    actual_output = target_data[color_idx].transpose(1, 2, 0)  # (64, 64, 3)
-                    
-                    # 理想输出（我们希望得到的纯色输出）
-                    if color_idx == 0:  # 应该输出纯红色
-                        ideal_output = mx.stack([
-                            mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32),
-                            mx.zeros((self.height, self.width), dtype=mx.float32),
-                            mx.zeros((self.height, self.width), dtype=mx.float32)
-                        ], axis=2)
-                    elif color_idx == 1:  # 应该输出纯绿色
-                        ideal_output = mx.stack([
-                            mx.zeros((self.height, self.width), dtype=mx.float32),
-                            mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32),
-                            mx.zeros((self.height, self.width), dtype=mx.float32)
-                        ], axis=2)
-                    else:  # 应该输出纯蓝色
-                        ideal_output = mx.stack([
-                            mx.zeros((self.height, self.width), dtype=mx.float32),
-                            mx.zeros((self.height, self.width), dtype=mx.float32),
-                            mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32)
-                        ], axis=2)
-                    
-                    # 建立简单的线性显示器模型：output = gain * input + offset
-                    # 假设校准后的输入通过相同的显示器特性应该产生理想输出
-                    
-                    # 计算显示器的响应特性（基于原始测量）
-                    # 原始输入是220的纯色，实际输出是actual_output
-                    original_input = mx.stack([
-                        mx.full((self.height, self.width), self.target_brightness if color_idx == 0 else 0.0, dtype=mx.float32),
-                        mx.full((self.height, self.width), self.target_brightness if color_idx == 1 else 0.0, dtype=mx.float32),
-                        mx.full((self.height, self.width), self.target_brightness if color_idx == 2 else 0.0, dtype=mx.float32)
-                    ], axis=2)
-                    
-                    # 估计显示器的增益（避免除零）
-                    gain = actual_output / (original_input + 1e-8)
-                    
-                    # 使用校准后的输入预测输出
-                    predicted_output = gain * calibrated_input_clipped
-                    
-                    # 主要损失：预测输出应该接近理想输出
-                    output_loss = mx.sum((predicted_output - ideal_output) ** 2)
-                    
-                    # 辅助损失1：校准输入应该在合理范围内
-                    range_loss = mx.sum(mx.maximum(0, calibrated_input_clipped - 255) ** 2) + \
-                                mx.sum(mx.maximum(0, -calibrated_input_clipped) ** 2)
-                    
-                    # 辅助损失2：相邻像素的校准应该平滑
-                    smooth_loss = mx.sum((calibrated_input_clipped[1:, :, :] - calibrated_input_clipped[:-1, :, :]) ** 2) + \
-                                 mx.sum((calibrated_input_clipped[:, 1:, :] - calibrated_input_clipped[:, :-1, :]) ** 2)
-                    
-                    total_loss += output_loss + 0.01 * range_loss + 0.001 * smooth_loss + negative_penalty
-                
-                return total_loss
-            
-            # 创建梯度计算函数
-            grad_fn = mx.value_and_grad(loss_fn)
-            
-            # 训练循环 - 手动梯度下降
-            for epoch in range(epochs):
-                loss_val, grads = grad_fn(self.calibration_matrix)
-                
-                # 检查NaN
-                if mx.isnan(loss_val):
-                    logger.warning(f"损失变成NaN在epoch {epoch}，停止训练")
-                    break
-                
-                # 梯度裁剪防止梯度爆炸
-                grad_norm = mx.sqrt(mx.sum(grads ** 2))
-                if grad_norm > 1.0:
-                    grads = grads / grad_norm
-                
-                # 手动更新参数，使用更小的学习率
-                self.calibration_matrix = self.calibration_matrix - (learning_rate * 0.1) * grads
-                
-                if epoch % 20 == 0:
-                    logger.info(f"Epoch {epoch}, Loss: {float(loss_val):.6f}, Grad Norm: {float(grad_norm):.6f}")
-                    
-        elif framework == "pytorch":
+        # if framework == "mlx":
+        #     # MLX 使用手动梯度下降
+        #     def loss_fn(calibration_matrix):
+        #         total_loss = 0
+        #         
+        #         # 转换数据为MLX格式
+        #         target_data = mx.array(self.data.astype(np.float32))
+        #         
+        #         for color_idx in range(3):
+        #             # 创建目标输入（用户想要显示的颜色）
+        #             if color_idx == 0:  # 想要显示红色
+        #                 target_input = mx.stack([
+        #                     mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32),
+        #                     mx.zeros((self.height, self.width), dtype=mx.float32),
+        #                     mx.zeros((self.height, self.width), dtype=mx.float32)
+        #                 ], axis=2)
+        #             elif color_idx == 1:  # 想要显示绿色
+        #                 target_input = mx.stack([
+        #                     mx.zeros((self.height, self.width), dtype=mx.float32),
+        #                     mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32),
+        #                     mx.zeros((self.height, self.width), dtype=mx.float32)
+        #                 ], axis=2)
+        #             else:  # 想要显示蓝色
+        #                 target_input = mx.stack([
+        #                     mx.zeros((self.height, self.width), dtype=mx.float32),
+        #                     mx.zeros((self.height, self.width), dtype=mx.float32),
+        #                     mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32)
+        #                 ], axis=2)
+        #             
+        #             # 应用校准矩阵
+        #             input_expanded = target_input[:, :, :, None]  # (64, 64, 3, 1)
+        #             calibrated_input = mx.matmul(calibration_matrix, input_expanded).squeeze(-1)  # (64, 64, 3)
+        #             
+        #             # 强制非负约束（在损失计算中）
+        #             negative_penalty = mx.sum(mx.maximum(0, -calibrated_input) ** 2) * 1000.0  # 对负值强烈惩罚
+        #             calibrated_input_clipped = mx.maximum(calibrated_input, 0.0)  # 用于后续计算的非负版本
+        #             
+        #             # 实际测量数据（当前输入220时的实际输出）
+        #             actual_output = target_data[color_idx].transpose(1, 2, 0)  # (64, 64, 3)
+        #             
+        #             # 理想输出（我们希望得到的纯色输出）
+        #             if color_idx == 0:  # 应该输出纯红色
+        #                 ideal_output = mx.stack([
+        #                     mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32),
+        #                     mx.zeros((self.height, self.width), dtype=mx.float32),
+        #                     mx.zeros((self.height, self.width), dtype=mx.float32)
+        #                 ], axis=2)
+        #             elif color_idx == 1:  # 应该输出纯绿色
+        #                 ideal_output = mx.stack([
+        #                     mx.zeros((self.height, self.width), dtype=mx.float32),
+        #                     mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32),
+        #                     mx.zeros((self.height, self.width), dtype=mx.float32)
+        #                 ], axis=2)
+        #             else:  # 应该输出纯蓝色
+        #                 ideal_output = mx.stack([
+        #                     mx.zeros((self.height, self.width), dtype=mx.float32),
+        #                     mx.zeros((self.height, self.width), dtype=mx.float32),
+        #                     mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32)
+        #                 ], axis=2)
+        #             
+        #             # 建立简单的线性显示器模型：output = gain * input + offset
+        #             # 假设校准后的输入通过相同的显示器特性应该产生理想输出
+        #             
+        #             # 计算显示器的响应特性（基于原始测量）
+        #             # 原始输入是220的纯色，实际输出是actual_output
+        #             original_input = mx.stack([
+        #                 mx.full((self.height, self.width), self.target_brightness if color_idx == 0 else 0.0, dtype=mx.float32),
+        #                 mx.full((self.height, self.width), self.target_brightness if color_idx == 1 else 0.0, dtype=mx.float32),
+        #                 mx.full((self.height, self.width), self.target_brightness if color_idx == 2 else 0.0, dtype=mx.float32)
+        #             ], axis=2)
+        #             
+        #             # 估计显示器的增益（避免除零）
+        #             gain = actual_output / (original_input + 1e-8)
+        #             
+        #             # 使用校准后的输入预测输出
+        #             predicted_output = gain * calibrated_input_clipped
+        #             
+        #             # 主要损失：预测输出应该接近理想输出
+        #             output_loss = mx.sum((predicted_output - ideal_output) ** 2)
+        #             
+        #             # 辅助损失1：校准输入应该在合理范围内
+        #             range_loss = mx.sum(mx.maximum(0, calibrated_input_clipped - 255) ** 2) + \
+        #                         mx.sum(mx.maximum(0, -calibrated_input_clipped) ** 2)
+        #             
+        #             # 辅助损失2：相邻像素的校准应该平滑
+        #             smooth_loss = mx.sum((calibrated_input_clipped[1:, :, :] - calibrated_input_clipped[:-1, :, :]) ** 2) + \
+        #                          mx.sum((calibrated_input_clipped[:, 1:, :] - calibrated_input_clipped[:, :-1, :]) ** 2)
+        #             
+        #             total_loss += output_loss + 0.01 * range_loss + 0.001 * smooth_loss + negative_penalty
+        #         
+        #         return total_loss
+        #     
+        #     # 创建梯度计算函数
+        #     grad_fn = mx.value_and_grad(loss_fn)
+        #     
+        #     # 训练循环 - 手动梯度下降
+        #     for epoch in range(epochs):
+        #         loss_val, grads = grad_fn(self.calibration_matrix)
+        #         
+        #         # 检查NaN
+        #         if mx.isnan(loss_val):
+        #             logger.warning(f"损失变成NaN在epoch {epoch}，停止训练")
+        #             break
+        #         
+        #         # 梯度裁剪防止梯度爆炸
+        #         grad_norm = mx.sqrt(mx.sum(grads ** 2))
+        #         if grad_norm > 1.0:
+        #             grads = grads / grad_norm
+        #         
+        #         # 手动更新参数，使用更小的学习率
+        #         self.calibration_matrix = self.calibration_matrix - (learning_rate * 0.1) * grads
+        #         
+        #         if epoch % 20 == 0:
+        #             logger.info(f"Epoch {epoch}, Loss: {float(loss_val):.6f}, Grad Norm: {float(grad_norm):.6f}")
+        #             
+        # elif framework == "pytorch":
+        if framework == "pytorch":
             # PyTorch 优化器
             optimizer = optim_torch.Adam([self.calibration_matrix], lr=learning_rate)
             
@@ -496,9 +502,10 @@ class DisplayCalibrator:
     
     def save_calibration_matrix(self, filename: str = "calibration.csv"):
         """保存校准矩阵"""
-        if framework == "mlx":
-            matrix_np = np.array(self.calibration_matrix)
-        elif framework == "pytorch":
+        # if framework == "mlx":
+        #     matrix_np = np.array(self.calibration_matrix)
+        # elif framework == "pytorch":
+        if framework == "pytorch":
             matrix_np = self.calibration_matrix.detach().cpu().numpy()
         else:
             matrix_np = self.calibration_matrix
@@ -524,21 +531,22 @@ class DisplayCalibrator:
         
         for color_idx, color in enumerate(color_names):
             # 创建纯色输入
-            if framework == "mlx":
-                # MLX版本 - 使用正确的数组创建方式
-                if color_idx == 0:  # R通道
-                    r_channel = mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32)
-                    zeros = mx.zeros((self.height, self.width), dtype=mx.float32)
-                    input_rgb = mx.stack([r_channel, zeros, zeros], axis=2)
-                elif color_idx == 1:  # G通道
-                    g_channel = mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32)
-                    zeros = mx.zeros((self.height, self.width), dtype=mx.float32)
-                    input_rgb = mx.stack([zeros, g_channel, zeros], axis=2)
-                else:  # B通道
-                    b_channel = mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32)
-                    zeros = mx.zeros((self.height, self.width), dtype=mx.float32)
-                    input_rgb = mx.stack([zeros, zeros, b_channel], axis=2)
-            elif framework == "pytorch":
+            # if framework == "mlx":
+            #     # MLX版本 - 使用正确的数组创建方式
+            #     if color_idx == 0:  # R通道
+            #         r_channel = mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32)
+            #         zeros = mx.zeros((self.height, self.width), dtype=mx.float32)
+            #         input_rgb = mx.stack([r_channel, zeros, zeros], axis=2)
+            #     elif color_idx == 1:  # G通道
+            #         g_channel = mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32)
+            #         zeros = mx.zeros((self.height, self.width), dtype=mx.float32)
+            #         input_rgb = mx.stack([zeros, g_channel, zeros], axis=2)
+            #     else:  # B通道
+            #         b_channel = mx.full((self.height, self.width), self.target_brightness, dtype=mx.float32)
+            #         zeros = mx.zeros((self.height, self.width), dtype=mx.float32)
+            #         input_rgb = mx.stack([zeros, zeros, b_channel], axis=2)
+            # elif framework == "pytorch":
+            if framework == "pytorch":
                 input_rgb = torch.zeros((self.height, self.width, 3), device=device, dtype=torch.float32)
                 input_rgb[:, :, color_idx] = self.target_brightness
             else:
@@ -549,9 +557,10 @@ class DisplayCalibrator:
             calibrated = self.apply_calibration(input_rgb)
             
             # 转换为NumPy格式
-            if framework == "mlx":
-                calibrated_np = np.array(calibrated)
-            elif framework == "pytorch":
+            # if framework == "mlx":
+            #     calibrated_np = np.array(calibrated)
+            # elif framework == "pytorch":
+            if framework == "pytorch":
                 calibrated_np = calibrated.detach().cpu().numpy()
             else:
                 calibrated_np = calibrated

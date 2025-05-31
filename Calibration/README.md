@@ -4,7 +4,7 @@
 
 ## 功能特性
 
-- **自动框架检测**: 支持Apple MLX、PyTorch CUDA/MPS、和CPU NumPy计算
+- **自动框架检测**: 支持PyTorch CUDA/MPS和CPU NumPy计算（Windows系统兼容）
 - **逐像素校准**: 为每个像素点生成独立的3×3校准变换矩阵
 - **多重损失函数**: 包含亮度差损失、颜色纯度损失和高亮度惩罚
 - **全局优化**: 最小化极差、相邻像素差异和目标亮度偏差
@@ -28,9 +28,8 @@
 pip install -r requirements.txt
 ```
 
-### 可选依赖
-- **Apple MLX**: 在Apple Silicon Mac上获得最佳性能
-- **PyTorch**: 支持CUDA和MPS GPU加速
+### 支持的计算框架
+- **PyTorch**: 支持CUDA和MPS GPU加速（推荐）
 - **NumPy**: CPU计算的后备选项
 
 ## 使用方法
@@ -114,9 +113,8 @@ python train_calibration.py \
 
 ## 性能优化
 
-- **Apple Silicon**: 自动使用MLX框架获得最佳性能
 - **NVIDIA GPU**: 自动检测CUDA并使用GPU加速
-- **Apple GPU**: 在M系列芯片上使用MPS加速
+- **Apple GPU**: 在M系列芯片上使用MPS加速（Mac系统）
 - **多核CPU**: NumPy自动利用多核处理
 
 ## 故障排除
