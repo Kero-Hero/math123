@@ -128,12 +128,18 @@ class CalibrationVisualizer:
     
     def create_color_composition_display(self, save_path: str = "color_composition.png"):
         """创建RGB颜色合成显示图"""
-        fig, axes = plt.subplots(3, 4, figsize=(20, 15))
+        fig, axes = plt.subplots(4, 4, figsize=(20, 20))  # 扩展为4行
         fig.suptitle('显示器颜色合成效果对比', fontsize=18, fontweight='bold')
         
         colors = ['R', 'G', 'B']
         color_names = ['红色输出', '绿色输出', '蓝色输出']
-        target_colors = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
+        # 修改目标颜色为220亮度值对应的归一化值
+        target_brightness_norm = self.target_brightness / 255.0  # 220/255 ≈ 0.863
+        target_colors = [
+            (target_brightness_norm, 0.0, 0.0),  # 红色目标：(220/255, 0, 0)
+            (0.0, target_brightness_norm, 0.0),  # 绿色目标：(0, 220/255, 0)
+            (0.0, 0.0, target_brightness_norm)   # 蓝色目标：(0, 0, 220/255)
+        ]
         
         for i, (color, color_name, target_color) in enumerate(zip(colors, color_names, target_colors)):
             # 获取RGB三通道数据
@@ -149,7 +155,7 @@ class CalibrationVisualizer:
             original_rgb = self.create_rgb_image(orig_r, orig_g, orig_b)
             calibrated_rgb = self.create_rgb_image(cal_r, cal_g, cal_b)
             
-            # 创建理想目标图像
+            # 创建理想目标图像（亮度为220）
             target_rgb = np.zeros((64, 64, 3))
             target_rgb[:, :] = target_color
             
@@ -177,6 +183,61 @@ class CalibrationVisualizer:
             
             cbar = plt.colorbar(im, ax=axes[i, 3], fraction=0.046, pad=0.04)
             cbar.set_label('改善程度', rotation=270, labelpad=15)
+        
+        # 添加RGB三通道混合输出的第四行
+        # 获取RGB三通道混合数据（白色输出时的情况）
+        orig_mixed_r = (self.original_data.get("R_R", np.zeros((64, 64))) + 
+                       self.original_data.get("G_R", np.zeros((64, 64))) + 
+                       self.original_data.get("B_R", np.zeros((64, 64)))) / 3
+        orig_mixed_g = (self.original_data.get("R_G", np.zeros((64, 64))) + 
+                       self.original_data.get("G_G", np.zeros((64, 64))) + 
+                       self.original_data.get("B_G", np.zeros((64, 64)))) / 3
+        orig_mixed_b = (self.original_data.get("R_B", np.zeros((64, 64))) + 
+                       self.original_data.get("G_B", np.zeros((64, 64))) + 
+                       self.original_data.get("B_B", np.zeros((64, 64)))) / 3
+        
+        cal_mixed_r = (self.calibrated_data.get("R_R", np.zeros((64, 64))) + 
+                      self.calibrated_data.get("G_R", np.zeros((64, 64))) + 
+                      self.calibrated_data.get("B_R", np.zeros((64, 64)))) / 3
+        cal_mixed_g = (self.calibrated_data.get("R_G", np.zeros((64, 64))) + 
+                      self.calibrated_data.get("G_G", np.zeros((64, 64))) + 
+                      self.calibrated_data.get("B_G", np.zeros((64, 64)))) / 3
+        cal_mixed_b = (self.calibrated_data.get("R_B", np.zeros((64, 64))) + 
+                      self.calibrated_data.get("G_B", np.zeros((64, 64))) + 
+                      self.calibrated_data.get("B_B", np.zeros((64, 64)))) / 3
+        
+        # 创建RGB混合合成图像
+        original_mixed_rgb = self.create_rgb_image(orig_mixed_r, orig_mixed_g, orig_mixed_b)
+        calibrated_mixed_rgb = self.create_rgb_image(cal_mixed_r, cal_mixed_g, cal_mixed_b)
+        
+        # 理想的白色目标（亮度为220）
+        target_white = (target_brightness_norm, target_brightness_norm, target_brightness_norm)  # (220/255, 220/255, 220/255)
+        target_white_rgb = np.full((64, 64, 3), target_brightness_norm)
+        
+        # 显示RGB混合输出
+        axes[3, 0].imshow(original_mixed_rgb)
+        axes[3, 0].set_title('RGB混合输出 - 校准前', fontweight='bold')
+        axes[3, 0].axis('off')
+        self.add_stats_text(axes[3, 0], original_mixed_rgb, target_white)
+        
+        axes[3, 1].imshow(calibrated_mixed_rgb)
+        axes[3, 1].set_title('RGB混合输出 - 校准后', fontweight='bold')
+        axes[3, 1].axis('off')
+        self.add_stats_text(axes[3, 1], calibrated_mixed_rgb, target_white)
+        
+        axes[3, 2].imshow(target_white_rgb)
+        axes[3, 2].set_title('RGB混合输出 - 理想目标', fontweight='bold')
+        axes[3, 2].axis('off')
+        
+        # RGB混合输出的改善效果图
+        mixed_improvement = np.abs(original_mixed_rgb - np.array(target_white)) - np.abs(calibrated_mixed_rgb - np.array(target_white))
+        mixed_improvement_mag = np.linalg.norm(mixed_improvement, axis=2)
+        im_mixed = axes[3, 3].imshow(mixed_improvement_mag, cmap='RdYlGn', vmin=-0.3, vmax=0.3)
+        axes[3, 3].set_title('RGB混合输出 - 改善程度', fontweight='bold')
+        axes[3, 3].axis('off')
+        
+        cbar_mixed = plt.colorbar(im_mixed, ax=axes[3, 3], fraction=0.046, pad=0.04)
+        cbar_mixed.set_label('改善程度', rotation=270, labelpad=15)
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
