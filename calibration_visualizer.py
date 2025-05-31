@@ -10,6 +10,10 @@ import sys
 import time
 import numpy as np
 import pandas as pd
+
+# 设置matplotlib使用非交互式后端
+import matplotlib
+matplotlib.use('Agg')  # 使用非交互式后端
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.colors import LinearSegmentedColormap
@@ -176,7 +180,7 @@ class CalibrationVisualizer:
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.show()
+        plt.close()  # 关闭图形，不显示
         print(f"✅ RGB颜色合成图已保存: {save_path}")
     
     def create_uniformity_heatmap(self, save_path: str = "uniformity_heatmap.png"):
@@ -234,7 +238,7 @@ class CalibrationVisualizer:
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.show()
+        plt.close()  # 关闭图形，不显示
         print(f"✅ 亮度均匀性热力图已保存: {save_path}")
     
     def create_statistical_comparison(self, save_path: str = "statistical_comparison.png"):
@@ -321,7 +325,7 @@ class CalibrationVisualizer:
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.show()
+        plt.close()  # 关闭图形，不显示
         print(f"✅ 统计对比图已保存: {save_path}")
     
     def create_crosstalk_analysis(self, save_path: str = "crosstalk_analysis.png"):
@@ -336,6 +340,7 @@ class CalibrationVisualizer:
             # 计算串扰
             original_crosstalk = []
             calibrated_crosstalk = []
+            other_channels = []
             
             for ch in colors:
                 if ch != color:
@@ -343,6 +348,7 @@ class CalibrationVisualizer:
                     cal_data = self.calibrated_data.get(f"{color}_{ch}", np.zeros((64, 64)))
                     original_crosstalk.append(np.mean(orig_data))
                     calibrated_crosstalk.append(np.mean(cal_data))
+                    other_channels.append(f'{ch}通道')
             
             # 串扰对比柱状图
             x_pos = np.arange(len(original_crosstalk))
@@ -353,7 +359,6 @@ class CalibrationVisualizer:
             axes[i, 0].bar(x_pos + width/2, calibrated_crosstalk, width, 
                           label='校准后', alpha=0.8, color='lightblue')
             
-            other_channels = [ch for ch in color_names if ch[0] != color]
             axes[i, 0].set_xlabel('串扰通道')
             axes[i, 0].set_ylabel('平均响应值')
             axes[i, 0].set_title(f'{color_name}输出的颜色串扰')
@@ -380,7 +385,7 @@ class CalibrationVisualizer:
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.show()
+        plt.close()  # 关闭图形，不显示
         print(f"✅ 色彩串扰分析图已保存: {save_path}")
     
     def create_3d_surface(self, save_path: str = "3d_surface.png"):
@@ -429,7 +434,7 @@ class CalibrationVisualizer:
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.show()
+        plt.close()  # 关闭图形，不显示
         print(f"✅ 3D表面图已保存: {save_path}")
 
     def generate_all_visualizations(self, output_dir: str = "visualization_output"):

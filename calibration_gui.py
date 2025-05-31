@@ -508,24 +508,30 @@ class CalibrationGUI:
         """初始化可视化器"""
         def init_task():
             try:
-                self.update_status("正在初始化可视化器...")
-                self.progress_var.set(30)
+                self.root.after(0, lambda: self.update_status("正在初始化可视化器..."))
+                self.root.after(0, lambda: self.progress_var.set(30))
                 
                 self.visualizer = CalibrationVisualizer(
                     data_dir=self.data_dir.get(),
                     target_brightness=self.target_brightness.get()
                 )
                 
-                self.progress_var.set(100)
-                self.update_status("可视化器初始化完成")
-                self.log_message("✅ 可视化器初始化成功", "SUCCESS")
+                self.root.after(0, lambda: self.progress_var.set(100))
+                self.root.after(0, lambda: self.update_status("可视化器初始化完成"))
+                self.root.after(0, lambda: self.log_message("✅ 可视化器初始化成功", "SUCCESS"))
                 
             except Exception as e:
-                self.log_message(f"❌ 初始化失败: {str(e)}", "ERROR")
-                Messagebox.show_error("初始化失败", f"无法初始化可视化器:\n{str(e)}")
+                # 在主线程中显示错误
+                error_msg = f"❌ 初始化失败: {str(e)}"
+                self.root.after(0, lambda: self.log_message(error_msg, "ERROR"))
+                
+                def show_error():
+                    Messagebox.show_error("初始化失败", f"无法初始化可视化器:\n{str(e)}")
+                
+                self.root.after(0, show_error)
             finally:
-                self.progress_var.set(0)
-                self.cancel_btn.configure(state='disabled')
+                self.root.after(0, lambda: self.progress_var.set(0))
+                self.root.after(0, lambda: self.cancel_btn.configure(state='disabled'))
                 
         self.cancel_btn.configure(state='normal')
         thread = threading.Thread(target=init_task, daemon=True)
@@ -545,57 +551,69 @@ class CalibrationGUI:
                 output_dir = self.output_dir.get()
                 os.makedirs(output_dir, exist_ok=True)
                 
-                self.cancel_btn.configure(state='normal')
+                # 在主线程中更新UI
+                self.root.after(0, lambda: self.cancel_btn.configure(state='normal'))
                 
                 if viz_type == "color_composition":
-                    self.update_status("正在生成RGB颜色合成图...")
-                    self.progress_var.set(20)
+                    self.root.after(0, lambda: self.update_status("正在生成RGB颜色合成图..."))
+                    self.root.after(0, lambda: self.progress_var.set(20))
                     file_path = os.path.join(output_dir, "color_composition.png")
                     self.visualizer.create_color_composition_display(file_path)
                     
                 elif viz_type == "uniformity_heatmap":
-                    self.update_status("正在生成亮度均匀性热力图...")
-                    self.progress_var.set(20)
+                    self.root.after(0, lambda: self.update_status("正在生成亮度均匀性热力图..."))
+                    self.root.after(0, lambda: self.progress_var.set(20))
                     file_path = os.path.join(output_dir, "uniformity_heatmap.png")
                     self.visualizer.create_uniformity_heatmap(file_path)
                     
                 elif viz_type == "statistical_comparison":
-                    self.update_status("正在生成统计对比图...")
-                    self.progress_var.set(20)
+                    self.root.after(0, lambda: self.update_status("正在生成统计对比图..."))
+                    self.root.after(0, lambda: self.progress_var.set(20))
                     file_path = os.path.join(output_dir, "statistical_comparison.png")
                     self.visualizer.create_statistical_comparison(file_path)
                     
                 elif viz_type == "crosstalk_analysis":
-                    self.update_status("正在生成色彩串扰分析图...")
-                    self.progress_var.set(20)
+                    self.root.after(0, lambda: self.update_status("正在生成色彩串扰分析图..."))
+                    self.root.after(0, lambda: self.progress_var.set(20))
                     file_path = os.path.join(output_dir, "crosstalk_analysis.png")
                     self.visualizer.create_crosstalk_analysis(file_path)
                     
                 elif viz_type == "3d_surface":
-                    self.update_status("正在生成3D表面图...")
-                    self.progress_var.set(20)
+                    self.root.after(0, lambda: self.update_status("正在生成3D表面图..."))
+                    self.root.after(0, lambda: self.progress_var.set(20))
                     file_path = os.path.join(output_dir, "3d_surface.png")
                     self.visualizer.create_3d_surface(file_path)
                     
                 elif viz_type == "full_report":
-                    self.update_status("正在生成完整报告...")
-                    self.progress_var.set(10)
+                    self.root.after(0, lambda: self.update_status("正在生成完整报告..."))
+                    self.root.after(0, lambda: self.progress_var.set(10))
                     self.visualizer.generate_all_visualizations(output_dir)
                     
-                self.progress_var.set(100)
-                self.update_status(f"可视化完成: {viz_type}")
-                self.log_message(f"✅ {viz_type} 生成完成", "SUCCESS")
+                # 在主线程中更新完成状态
+                self.root.after(0, lambda: self.progress_var.set(100))
+                self.root.after(0, lambda: self.update_status(f"可视化完成: {viz_type}"))
+                self.root.after(0, lambda: self.log_message(f"✅ {viz_type} 生成完成", "SUCCESS"))
                 
-                # 询问是否打开输出目录
-                if Messagebox.show_question("生成完成", "可视化图表已生成完成！\n是否打开输出目录？") == "Yes":
-                    self.open_output_directory()
+                # 询问是否打开输出目录 - 在主线程中执行
+                def ask_open_dir():
+                    if Messagebox.show_question("生成完成", "可视化图表已生成完成！\n是否打开输出目录？") == "Yes":
+                        self.open_output_directory()
+                
+                self.root.after(0, ask_open_dir)
                     
             except Exception as e:
-                self.log_message(f"❌ 生成失败: {str(e)}", "ERROR")
-                Messagebox.show_error("生成失败", f"可视化生成失败:\n{str(e)}")
+                # 在主线程中显示错误
+                error_msg = f"❌ 生成失败: {str(e)}"
+                self.root.after(0, lambda: self.log_message(error_msg, "ERROR"))
+                
+                def show_error():
+                    Messagebox.show_error("生成失败", f"可视化生成失败:\n{str(e)}")
+                
+                self.root.after(0, show_error)
             finally:
-                self.progress_var.set(0)
-                self.cancel_btn.configure(state='disabled')
+                # 在主线程中重置状态
+                self.root.after(0, lambda: self.progress_var.set(0))
+                self.root.after(0, lambda: self.cancel_btn.configure(state='disabled'))
                 
         thread = threading.Thread(target=viz_task, daemon=True)
         thread.start()
